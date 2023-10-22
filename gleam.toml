@@ -1,5 +1,5 @@
 name = "radiate"
-version = "0.1.0"
+version = "0.2.0"
 
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
@@ -11,8 +11,9 @@ repository = { type = "github", user = "pta2002", repo = "gleam-radiate" }
 
 [dependencies]
 gleam_stdlib = "~> 0.31"
-filespy = "~> 0.1.1"
+filespy = "~> 0.2"
 shellout = "~> 1.4"
+gleam_otp = "~> 0.7"
 
 [dev-dependencies]
 gleeunit = "~> 0.10"
