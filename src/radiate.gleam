@@ -4,7 +4,7 @@ import shellout
 import gleam/string
 import gleam/list
 import gleam/otp/actor
-import gleam/option.{None, Option, Some}
+import gleam/option.{type Option, None, Some}
 
 /// Phantom type to indicate no directories are added
 pub type NoDirectories
