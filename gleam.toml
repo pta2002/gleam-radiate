@@ -6,15 +6,14 @@ version = "0.3.0"
 #
 description = "Hot reloading while in development for Gleam"
 licences = ["Apache-2.0"]
-repository = { type = "github", user = "pta2002", repo = "gleam-radiate" }
-gleam = ">= 0.32.0"
+repository = {type = "github", user = "pta2002", repo = "gleam-radiate"}
 # links = [{ title = "Website", href = "https://gleam.run" }]
 
 [dependencies]
-gleam_stdlib = "~> 0.31"
-filespy = "~> 0.2"
-shellout = "~> 1.4"
-gleam_otp = "~> 0.7"
+filespy = "~> 0.3"
+gleam_otp = "~> 0.10"
+gleam_stdlib = "~> 0.34 or ~> 1.0"
+shellout = "~> 1.5"
 
 [dev-dependencies]
-gleeunit = "~> 0.10"
+gleeunit = "~> 1.0"
