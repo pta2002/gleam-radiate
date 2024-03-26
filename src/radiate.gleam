@@ -107,7 +107,7 @@ pub fn start_state(builder: Builder(state, HasDirectories, HasInitializer)) {
       state,
       fn(state, event) {
         case event {
-          filespy.Closed -> {
+          filespy.Closed | filespy.Modified -> {
             // Check if path ends in '.gleam'
             case string.ends_with(path, ".gleam") {
               True -> {
