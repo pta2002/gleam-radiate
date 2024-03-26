@@ -64,7 +64,7 @@ import gleam/io
 pub fn main() {
   let _ = radiate.new()
     |> radiate.add_dir("src")
-    |> radiate.on_reload(fn (path) {
+    |> radiate.on_reload(fn (_state, path) {
       io.println("Change in " <> path <> ", reloading!")
     })
     |> radiate.start()
