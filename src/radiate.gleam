@@ -102,46 +102,42 @@ pub fn start_state(builder: Builder(state, HasDirectories, HasInitializer)) {
     let filespy.Change(path, events) = msg
 
     // todo fold over state... gah!
-    list.fold(
-      events,
-      state,
-      fn(state, event) {
-        case event {
-          filespy.Closed | filespy.Modified -> {
-            // Check if path ends in '.gleam'
-            case string.ends_with(path, ".gleam") {
-              True -> {
-                // Rebuild
-                let build_result =
-                  shellout.command(["build"], run: "gleam", in: ".", opt: [])
+    list.fold(events, state, fn(state, event) {
+      case event {
+        filespy.Closed | filespy.Modified -> {
+          // Check if path ends in '.gleam'
+          case string.ends_with(path, ".gleam") {
+            True -> {
+              // Rebuild
+              let build_result =
+                shellout.command(["build"], run: "gleam", in: ".", opt: [])
 
-                case build_result {
-                  Ok(_output) -> {
-                    let mods = modified_modules()
-                    list.each(mods, purge)
-                    let _ = atomic_load(mods)
+              case build_result {
+                Ok(_output) -> {
+                  let mods = modified_modules()
+                  list.each(mods, purge)
+                  let _ = atomic_load(mods)
 
-                    case builder.callback {
-                      Some(cb) -> cb(state, path)
-                      None -> state
-                    }
-                  }
-
-                  Error(#(_status, message)) -> {
-                    message
-                    |> io.print_error
-
-                    state
+                  case builder.callback {
+                    Some(cb) -> cb(state, path)
+                    None -> state
                   }
                 }
+
+                Error(#(_status, message)) -> {
+                  message
+                  |> io.print_error
+
+                  state
+                }
               }
-              _ -> state
             }
+            _ -> state
           }
-          _ -> state
         }
-      },
-    )
+        _ -> state
+      }
+    })
     |> actor.continue
   })
   |> filespy.start()
