@@ -80,4 +80,4 @@ This package can be added to your Gleam project:
 gleam add radiate
 ```
 
-and its documentation can be found at <https://hexdocs.pm/reloader>.
+and its documentation can be found at <https://hexdocs.pm/radiate>.
