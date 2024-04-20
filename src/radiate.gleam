@@ -1,10 +1,10 @@
 import filespy
 import gleam/io
-import shellout
-import gleam/string
 import gleam/list
-import gleam/otp/actor
 import gleam/option.{type Option, None, Some}
+import gleam/otp/actor
+import gleam/string
+import shellout
 
 /// Phantom type to indicate no directories are added
 pub type NoDirectories
@@ -18,24 +18,34 @@ pub type NoInitializer
 /// Phantom type to indicate builder has initializer
 pub type HasInitializer
 
+/// Phantom type to indicate builder has no callback
+pub type NoCallback
+
+/// Phantom type to indicate builder has callback
+pub type HasCallback
+
 /// Opaque builder type for reloader. Create with `new`.
-pub opaque type Builder(state, has_dirs, has_initializer) {
+pub opaque type Builder(state, has_dirs, has_initializer, has_callback) {
   Builder(
     dirs: List(String),
-    callback: Option(fn(state, String) -> state),
+    callback: fn(state, String) -> state,
     initializer: Option(fn() -> state),
   )
 }
 
 /// Construct a new builder
-pub fn new() -> Builder(Nil, NoDirectories, NoInitializer) {
-  Builder(dirs: [], callback: None, initializer: None)
+pub fn new() -> Builder(Nil, NoDirectories, NoInitializer, NoCallback) {
+  fn(state, path) {
+    io.println("Change in " <> path <> ", reloading.")
+    state
+  }
+  |> Builder(dirs: [], callback: _, initializer: None)
 }
 
 pub fn add_dir(
-  builder: Builder(state, has_dirs, has_initializer),
+  builder: Builder(state, has_dirs, has_initializer, has_callback),
   dir: String,
-) -> Builder(state, HasDirectories, has_initializer) {
+) -> Builder(state, HasDirectories, has_initializer, has_callback) {
   Builder(
     dirs: [dir, ..builder.dirs],
     callback: builder.callback,
@@ -45,12 +55,12 @@ pub fn add_dir(
 
 /// Add a callback to be run after reload
 pub fn on_reload(
-  builder: Builder(state, has_dirs, has_initializer),
+  builder: Builder(state, has_dirs, has_initializer, NoCallback),
   callback: fn(state, String) -> state,
-) -> Builder(state, has_dirs, has_initializer) {
+) -> Builder(state, has_dirs, has_initializer, HasCallback) {
   Builder(
     dirs: builder.dirs,
-    callback: Some(callback),
+    callback: callback,
     initializer: builder.initializer,
   )
 }
@@ -60,9 +70,9 @@ pub fn on_reload(
 /// This will be run in the file watcher process, so it can be useful to, for
 /// example, add state to an actor
 pub fn set_initializer(
-  builder: Builder(state, has_dirs, NoInitializer),
+  builder: Builder(state, has_dirs, NoInitializer, has_callback),
   initializer: fn() -> state,
-) -> Builder(state, has_dirs, HasInitializer) {
+) -> Builder(state, has_dirs, HasInitializer, has_callback) {
   Builder(
     dirs: builder.dirs,
     callback: builder.callback,
@@ -84,14 +94,16 @@ fn purge(module: Module) -> Bool
 fn atomic_load(modules: List(Module)) -> Result(Nil, List(#(Module, What)))
 
 /// Start reloader, if no state has been set
-pub fn start(builder: Builder(Nil, HasDirectories, NoInitializer)) {
+pub fn start(builder: Builder(Nil, HasDirectories, NoInitializer, has_callback)) {
   builder
   |> set_initializer(fn() { Nil })
   |> start_state()
 }
 
 /// Start reloader, ensuring that a state has been set
-pub fn start_state(builder: Builder(state, HasDirectories, HasInitializer)) {
+pub fn start_state(
+  builder: Builder(state, HasDirectories, HasInitializer, has_callback),
+) {
   filespy.new()
   |> filespy.set_initializer(fn() {
     let assert Some(init) = builder.initializer
@@ -99,46 +111,45 @@ pub fn start_state(builder: Builder(state, HasDirectories, HasInitializer)) {
   })
   |> filespy.add_dirs(builder.dirs)
   |> filespy.set_actor_handler(fn(msg, state) {
-    let filespy.Change(path, events) = msg
+    case msg {
+      filespy.Custom(_) -> actor.continue(state)
+      filespy.Change(path, events) -> {
+        // todo fold over state... gah!
+        list.fold(events, state, fn(state, event) {
+          case event {
+            filespy.Closed | filespy.Modified -> {
+              // Check if path ends in '.gleam'
+              case string.ends_with(path, ".gleam") {
+                True -> {
+                  // Rebuild
+                  let build_result =
+                    shellout.command(["build"], run: "gleam", in: ".", opt: [])
 
-    // todo fold over state... gah!
-    list.fold(events, state, fn(state, event) {
-      case event {
-        filespy.Closed | filespy.Modified -> {
-          // Check if path ends in '.gleam'
-          case string.ends_with(path, ".gleam") {
-            True -> {
-              // Rebuild
-              let build_result =
-                shellout.command(["build"], run: "gleam", in: ".", opt: [])
+                  case build_result {
+                    Ok(_output) -> {
+                      let mods = modified_modules()
+                      list.each(mods, purge)
+                      let _ = atomic_load(mods)
+                      builder.callback(state, path)
+                    }
 
-              case build_result {
-                Ok(_output) -> {
-                  let mods = modified_modules()
-                  list.each(mods, purge)
-                  let _ = atomic_load(mods)
+                    Error(#(_status, message)) -> {
+                      message
+                      |> io.print_error
 
-                  case builder.callback {
-                    Some(cb) -> cb(state, path)
-                    None -> state
+                      state
+                    }
                   }
                 }
-
-                Error(#(_status, message)) -> {
-                  message
-                  |> io.print_error
-
-                  state
-                }
+                _ -> state
               }
             }
             _ -> state
           }
-        }
-        _ -> state
+        })
+        |> actor.continue
       }
-    })
-    |> actor.continue
+    }
   })
   |> filespy.start()
 }
