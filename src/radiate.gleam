@@ -42,6 +42,9 @@ pub fn new() -> Builder(Nil, NoDirectories, NoInitializer, NoCallback) {
   |> Builder(dirs: [], callback: _, initializer: None)
 }
 
+/// Add a directory to watch. The path can be relative or absolute.
+/// macOS users: always use `"."` or an absolute path, otherwise it won't work
+/// properly!
 pub fn add_dir(
   builder: Builder(state, has_dirs, has_initializer, has_callback),
   dir: String,

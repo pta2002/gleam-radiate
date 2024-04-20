@@ -53,6 +53,10 @@ Now, go ahead and change the text `get_message` returns to `"Hello, world!"`, an
 
 As soon as you save, the message printed is changed to "Hello, world!", without needing to restart the program!
 
+### Warning for macOS users
+
+Right now, the `add_dir` function only supports `"."` or an absolute path! Be careful to resolve the path to get it work if you want to watch `"src"` for example.
+
 ## Adding a callback
 
 You can add callbacks to be run every time code is reloaded through `on_reload`:
