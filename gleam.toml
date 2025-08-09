@@ -10,10 +10,11 @@ repository = {type = "github", user = "pta2002", repo = "gleam-radiate"}
 # links = [{ title = "Website", href = "https://gleam.run" }]
 
 [dependencies]
-filespy = ">= 0.4.0 and < 1.0.0"
-gleam_otp = "~> 0.10"
-gleam_stdlib = "~> 0.34 or ~> 1.0"
-shellout = "~> 1.5"
+filespy = { git = "https://github.com/h22roscoe/gleam-filespy.git", ref = "76a1562bbd950728bae4258ad3a19072158b8291" }
+gleam_erlang = ">= 1.2.0 and < 2.0.0"
+gleam_otp = ">= 1.0.0 and < 2.0.0"
+gleam_stdlib = ">= 0.44.0 and < 2.0.0"
+shellout = ">= 1.7.0 and < 2.0.0"
 
 [dev-dependencies]
-gleeunit = "~> 1.0"
+gleeunit = ">= 1.6.0 and < 2.0.0"
