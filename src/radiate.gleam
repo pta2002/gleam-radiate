@@ -95,7 +95,6 @@ pub fn add_dir(
   has_callback,
   has_before_callback,
 ) {
-  echo dir
   Builder(
     dirs: [dir, ..builder.dirs],
     callback: builder.callback,
