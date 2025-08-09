@@ -1,4 +1,5 @@
 import filespy
+import gleam/erlang/process
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -33,6 +34,7 @@ pub type NoBeforeCallback
 /// Opaque builder type for reloader. Create with `new`.
 pub opaque type Builder(
   state,
+  custom,
   has_dirs,
   has_initializer,
   has_callback,
@@ -41,13 +43,24 @@ pub opaque type Builder(
   Builder(
     dirs: List(String),
     callback: fn(state, String) -> state,
-    initializer: Option(fn() -> state),
+    initializer: Option(
+      fn(process.Subject(filespy.Change(custom))) ->
+        Result(
+          actor.Initialised(
+            Nil,
+            filespy.Change(custom),
+            process.Subject(filespy.Change(custom)),
+          ),
+          custom,
+        ),
+    ),
     before_callback: Option(fn(state, String) -> state),
   )
 }
 
 /// Construct a new builder
 pub fn new() -> Builder(
+  Nil,
   Nil,
   NoDirectories,
   NoInitializer,
@@ -67,6 +80,7 @@ pub fn new() -> Builder(
 pub fn add_dir(
   builder: Builder(
     state,
+    Nil,
     has_dirs,
     has_initializer,
     has_callback,
@@ -75,11 +89,13 @@ pub fn add_dir(
   dir: String,
 ) -> Builder(
   state,
+  Nil,
   HasDirectories,
   has_initializer,
   has_callback,
   has_before_callback,
 ) {
+  echo dir
   Builder(
     dirs: [dir, ..builder.dirs],
     callback: builder.callback,
@@ -92,13 +108,21 @@ pub fn add_dir(
 pub fn on_reload(
   builder: Builder(
     state,
+    Nil,
     has_dirs,
     has_initializer,
     NoCallback,
     has_before_callback,
   ),
   callback: fn(state, String) -> state,
-) -> Builder(state, has_dirs, has_initializer, HasCallback, has_before_callback) {
+) -> Builder(
+  state,
+  Nil,
+  has_dirs,
+  has_initializer,
+  HasCallback,
+  has_before_callback,
+) {
   Builder(
     dirs: builder.dirs,
     callback: callback,
@@ -111,13 +135,21 @@ pub fn on_reload(
 pub fn before_reload(
   builder: Builder(
     state,
+    Nil,
     has_dirs,
     has_initializer,
     has_callback,
     NoBeforeCallback,
   ),
   before_callback: fn(state, String) -> state,
-) -> Builder(state, has_dirs, has_initializer, has_callback, HasBeforeCallback) {
+) -> Builder(
+  state,
+  Nil,
+  has_dirs,
+  has_initializer,
+  has_callback,
+  HasBeforeCallback,
+) {
   Builder(
     dirs: builder.dirs,
     callback: builder.callback,
@@ -133,13 +165,29 @@ pub fn before_reload(
 pub fn set_initializer(
   builder: Builder(
     state,
+    Nil,
     has_dirs,
     NoInitializer,
     has_callback,
     has_before_callback,
   ),
-  initializer: fn() -> state,
-) -> Builder(state, has_dirs, HasInitializer, has_callback, has_before_callback) {
+  initializer: fn(process.Subject(filespy.Change(Nil))) ->
+    Result(
+      actor.Initialised(
+        Nil,
+        filespy.Change(Nil),
+        process.Subject(filespy.Change(Nil)),
+      ),
+      Nil,
+    ),
+) -> Builder(
+  state,
+  Nil,
+  has_dirs,
+  HasInitializer,
+  has_callback,
+  has_before_callback,
+) {
   Builder(
     dirs: builder.dirs,
     callback: builder.callback,
@@ -165,6 +213,7 @@ fn atomic_load(modules: List(Module)) -> Result(Nil, List(#(Module, What)))
 pub fn start(
   builder: Builder(
     Nil,
+    Nil,
     HasDirectories,
     NoInitializer,
     has_callback,
@@ -172,7 +221,16 @@ pub fn start(
   ),
 ) {
   builder
-  |> set_initializer(fn() { Nil })
+  |> set_initializer(fn(subject) {
+    let selector =
+      process.new_selector()
+      |> process.select(subject)
+
+    actor.initialised(Nil)
+    |> actor.returning(subject)
+    |> actor.selecting(selector)
+    |> Ok
+  })
   |> start_state()
 }
 
@@ -180,6 +238,7 @@ pub fn start(
 fn execute_reload(
   builder: Builder(
     state,
+    Nil,
     HasDirectories,
     HasInitializer,
     has_callback,
@@ -210,7 +269,8 @@ fn execute_reload(
 /// Start reloader, ensuring that a state has been set
 pub fn start_state(
   builder: Builder(
-    state,
+    Nil,
+    Nil,
     HasDirectories,
     HasInitializer,
     has_callback,
@@ -218,12 +278,22 @@ pub fn start_state(
   ),
 ) {
   filespy.new()
-  |> filespy.set_initializer(fn() {
+  |> filespy.set_initializer(fn(subject) {
     let assert Some(init) = builder.initializer
-    init()
+    let initialised = init(subject)
+    case initialised {
+      Ok(initialised) -> {
+        initialised
+        |> actor.returning(subject)
+        |> Ok
+      }
+      Error(_error) -> {
+        Error("Error during initializing")
+      }
+    }
   })
   |> filespy.add_dirs(builder.dirs)
-  |> filespy.set_actor_handler(fn(msg, state) {
+  |> filespy.set_actor_handler(fn(state, msg) {
     case msg {
       filespy.Custom(_) -> actor.continue(state)
       filespy.Change(path, events) -> {
@@ -238,13 +308,14 @@ pub fn start_state(
                     Some(before) -> {
                       // If we have a before callback, we can run it before
                       // executing the reload.
-                      before(state, path)
+                      let state = before(state, path)
                       execute_reload(builder, state, path)
                     }
                     _ -> {
                       execute_reload(builder, state, path)
                     }
                   }
+                  state
                 }
 
                 _ -> state
@@ -253,7 +324,7 @@ pub fn start_state(
             _ -> state
           }
         })
-        |> actor.continue
+        actor.continue(state)
       }
     }
   })
