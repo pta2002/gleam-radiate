@@ -296,34 +296,27 @@ pub fn start_state(
     case msg {
       filespy.Custom(_) -> actor.continue(state)
       filespy.Change(path, events) -> {
-        // todo fold over state... gah!
         list.fold(events, state, fn(state, event) {
           case event {
             filespy.Closed | filespy.Modified -> {
               // Check if path ends in '.gleam'
               case string.ends_with(path, ".gleam") {
                 True -> {
-                  case builder.before_callback {
-                    Some(before) -> {
-                      // If we have a before callback, we can run it before
-                      // executing the reload.
-                      let state = before(state, path)
-                      execute_reload(builder, state, path)
-                    }
-                    _ -> {
-                      execute_reload(builder, state, path)
-                    }
+                  let state = case builder.before_callback {
+                    // If we have a before callback, we can run it before
+                    // executing the reload.
+                    Some(before) -> before(state, path)
+                    _ -> state
                   }
-                  state
+                  execute_reload(builder, state, path)
                 }
-
                 _ -> state
               }
             }
             _ -> state
           }
         })
-        actor.continue(state)
+        |> actor.continue()
       }
     }
   })
