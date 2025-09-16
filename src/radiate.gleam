@@ -95,12 +95,7 @@ pub fn add_dir(
   has_callback,
   has_before_callback,
 ) {
-  Builder(
-    dirs: [dir, ..builder.dirs],
-    callback: builder.callback,
-    initializer: builder.initializer,
-    before_callback: builder.before_callback,
-  )
+  Builder(..builder, dirs: [dir, ..builder.dirs])
 }
 
 /// Add a callback to be run after reload
@@ -122,12 +117,7 @@ pub fn on_reload(
   HasCallback,
   has_before_callback,
 ) {
-  Builder(
-    dirs: builder.dirs,
-    callback: callback,
-    initializer: builder.initializer,
-    before_callback: builder.before_callback,
-  )
+  Builder(..builder, callback: callback)
 }
 
 /// Add a callback to handle a process before reloading modules
@@ -149,12 +139,7 @@ pub fn before_reload(
   has_callback,
   HasBeforeCallback,
 ) {
-  Builder(
-    dirs: builder.dirs,
-    callback: builder.callback,
-    initializer: builder.initializer,
-    before_callback: Some(before_callback),
-  )
+  Builder(..builder, before_callback: Some(before_callback))
 }
 
 /// Add an initializer
@@ -187,12 +172,7 @@ pub fn set_initializer(
   has_callback,
   has_before_callback,
 ) {
-  Builder(
-    dirs: builder.dirs,
-    callback: builder.callback,
-    initializer: Some(initializer),
-    before_callback: builder.before_callback,
-  )
+  Builder(..builder, initializer: Some(initializer))
 }
 
 type Module
